@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'rh'
+
+# You can add fixtures and/or initialization code here to make experimenting
+# with your gem easier. You can also use a different console, if you like.
+
+# (If you use this, don't forget to add pry to your Gemfile!)
+# require "pry"
+# Pry.start
+
+puts "Recursive Hash module
+Short list of functions:
+- Hash.rh_set(value, *keys) => value
+- Hash.rh_get(*keys) => value found or nil
+- Hash.rh_exist?(*keys) => true/false
+- Hash.rh_lexist?(*keys) => number
+- Hash.rh_clone() => Hash
+- Hash.rh_del(*keys) => data removed
+- Hash.rh_merge(hash) => Hash/Array merged
+- Hash.rh_merge!(hash) => Hash/Array merged
+- Array.rh_merge(Array) => Array/Hash merged
+- Array.rh_merge!(Array) => Array/Hash merged"
+
+require 'irb'
+IRB.start
