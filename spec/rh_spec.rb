@@ -19,7 +19,7 @@
 
 $LOAD_PATH << File.join(File.dirname(__FILE__), '..', 'lib')
 
-require 'rhash'
+require 'subhash'
 
 describe 'Recursive Hash/Array extension,' do
   context "With { :test => {:test2 => 'value1', :test3 => 'value2'},"\

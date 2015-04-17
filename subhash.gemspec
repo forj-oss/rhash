@@ -1,15 +1,15 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'rhash/version'
+require 'subhash/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = 'rhash'
-  spec.version       = Rhash::VERSION
+  spec.name          = 'subhash'
+  spec.version       = SubHash::VERSION
   spec.authors       = ['Christophe Larsonneur']
   spec.email         = ['clarsonneur@gmail.com']
 
-  spec.summary       = 'Recursive Hash'
+  spec.summary       = 'Recursive Hash of hashes/Array management'
   spec.description   = 'Hash and Array object enhanced to manage Hash of Hash/Array easily.'
   spec.homepage      = "https://github.com/forj-oss/rhash"
 
