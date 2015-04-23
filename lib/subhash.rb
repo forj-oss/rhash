@@ -28,20 +28,29 @@ end
 module Rh
   public
 
-  # Function which will parse arrays in hierarchie and will remove any control
-  # element (index 0)
-  def rh_remove_control(result)
-    return unless [Hash, Array].include?(result.class)
+  def merge_cleanup!
+    _rh_remove_control(self)
+  end
 
-    if result.is_a?(Hash)
-      result.each { |elem| rh_remove_control(elem) }
-    else
-      result.delete_at(0) if result[0].is_a?(Hash) && result[0].key?(:__control)
-      result.each_index { |index| rh_remove_control(result[index]) }
-    end
+  def merge_cleanup
+    _rh_remove_control(rh_clone)
   end
 
   private
+
+  # Function which will parse arrays in hierarchie and will remove any control
+  # element (index 0)
+  def _rh_remove_control(result)
+    return unless [Hash, Array].include?(result.class)
+
+    if result.is_a?(Hash)
+      result.each { |elem| _rh_remove_control(elem) }
+    else
+      result.delete_at(0) if result[0].is_a?(Hash) && result[0].key?(:__control)
+      result.each_index { |index| _rh_remove_control(result[index]) }
+    end
+    result
+  end
 
   # Internal function to determine if result and data key contains both Hash or
   # Array and if so, do the merge task on those sub Hash/Array
@@ -565,7 +574,7 @@ class Hash
       _do_rh_merge(result, key, data, true) if data.key?(key)
 
       # Remove all control element in arrays
-      rh_remove_control(result[key]) if result.key?(key)
+      _rh_remove_control(result[key]) if result.key?(key)
     end
 
     result
@@ -762,7 +771,8 @@ class Array
     end
 
     _rh_do_array_merge(result, 0, [data_control])
-    rh_remove_control(result[0]) # Remove all control elements in tree of arrays
+    # Remove all control elements in tree of arrays
+    _rh_remove_control(result[0])
 
     result
   end

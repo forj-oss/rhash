@@ -446,6 +446,25 @@ describe 'Recursive Hash/Array extension,' do
                        :test => :ok },
                      :data2, :data3])
     end
+
+    # Array Control Cleanup
+    it "previous_result.merge_cleanup\n    => "\
+         '[{ :blabla => [:data1], :test => :ok }, :data2, :data3]' do
+      hash = @orig.rh_merge([{ :blabla => [:data1], :test => :ok }])
+
+      expect(hash.merge_cleanup
+            ).to eq([{ :blabla => [:data1], :test => :ok }, :data2, :data3])
+      expect(hash.merge_cleanup).not_to eq(hash)
+    end
+
+    it "previous_result.merge_cleanup!\n    => "\
+       'previous_result => [{ :blabla => [:data1], :test => :ok }, '\
+       ':data2, :data3]' do
+      hash = @orig.rh_merge([{ :blabla => [:data1], :test => :ok }])
+      hash_result = hash.merge_cleanup
+      expect(hash.merge_cleanup!).to eq(hash_result)
+      expect(hash).to eq(hash_result)
+    end
   end
 
   context 'with orig = {:__struct_changing => [:data1], '\
