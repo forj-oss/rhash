@@ -6,6 +6,7 @@ require 'subhash/version'
 Gem::Specification.new do |spec|
   spec.name          = 'subhash'
   spec.version       = SubHash::VERSION
+  spec.date          = SubHash::DATE
   spec.authors       = ['Christophe Larsonneur']
   spec.email         = ['clarsonneur@gmail.com']
 
