@@ -16,6 +16,8 @@
 #    limitations under the License.
 
 #  require 'byebug'
+require 'rubygems'
+#  require 'ruby-debug' ; Debugger.start
 
 $LOAD_PATH << File.join(File.dirname(__FILE__), '..', 'lib')
 
@@ -28,6 +30,7 @@ describe 'Recursive Hash/Array extension,' do
       @hdata = { :test => { :test2 => 'value1', :test3 => 'value2' },
                  :test4 => 'value3' }
     end
+
     it 'rh_lexist?(:test) '"\n    => "' 1' do
       expect(@hdata.rh_lexist?(:test)).to eq(1)
     end
@@ -46,6 +49,64 @@ describe 'Recursive Hash/Array extension,' do
 
     it 'rh_lexist?(:test, :test5 ) '"\n    => "' 1' do
       expect(@hdata.rh_lexist?(:test, :test5)).to eq(1)
+    end
+
+    it 'rh_lexist? '"\n    => "' 0' do
+      expect(@hdata.rh_lexist?).to eq(0)
+    end
+  end
+
+  context "With { :test => [{ :test2 => 'value1' },"\
+          " { :test3 => 'value2' },"\
+          " { :test4 => { :test5 => 'value3' } }] }" do
+    before(:all) do
+      @hdata = { :test => [{ :test2 => 'value1' },
+                           { :test3 => 'value2' },
+                           { :test4 => { :test5 => 'value3' } }] }
+    end
+
+    it 'rh_lexist?(:test) '"\n    => "' 1' do
+      expect(@hdata.rh_lexist?(:test)).to eq(1)
+    end
+
+    it 'rh_lexist?(:test5) '"\n    => "' 0' do
+      expect(@hdata.rh_lexist?(:test5)).to eq(0)
+    end
+
+    it 'rh_lexist?(:test, :test2) '"\n    => "' 2' do
+      expect(@hdata.rh_lexist?(:test, :test2)).to eq(2)
+    end
+
+    it 'rh_lexist?(:test, :test2, :test5) '"\n    => "' 2' do
+      expect(@hdata.rh_lexist?(:test, :test2, :test5)).to eq(2)
+    end
+
+    it 'rh_lexist?(:test, :test4, :test5 ) '"\n    => "' 3' do
+      expect(@hdata.rh_lexist?(:test, :test4, :test5)).to eq(3)
+    end
+
+    it 'rh_lexist?(:test, :test4, :test5, :test6 ) '"\n    => "' 3' do
+      expect(@hdata.rh_lexist?(:test, :test4, :test5, :test6)).to eq(3)
+    end
+
+    it 'rh_lexist?(:test, :test2, :test5, :test6 ) '"\n    => "' 2' do
+      expect(@hdata.rh_lexist?(:test, :test2, :test5, :test6)).to eq(2)
+    end
+
+    it 'rh_lexist?(:test, 3 ) '"\n    => "' 1' do
+      expect(@hdata.rh_lexist?(:test, 3)).to eq(1)
+    end
+
+    it 'rh_lexist?(:test, 0 ) '"\n    => "' 2' do
+      expect(@hdata.rh_lexist?(:test, 0)).to eq(2)
+    end
+
+    it 'rh_lexist?(:test, 0, :test2) '"\n    => "' 3' do
+      expect(@hdata.rh_lexist?(:test, 0, :test2)).to eq(3)
+    end
+
+    it 'rh_lexist?(:test, 2, :test4, :test5) '"\n    => "' 4' do
+      expect(@hdata.rh_lexist?(:test, 2, :test4, :test5)).to eq(4)
     end
 
     it 'rh_lexist? '"\n    => "' 0' do
@@ -85,11 +146,12 @@ describe 'Recursive Hash/Array extension,' do
   end
 
   context "With { :test => {:test2 => 'value1', :test3 => 'value2'},"\
-          ":test4 => 'value3'}" do
+          ":test4 => 'value3', :test6 => {:test2 => 'value4'}}" do
     before(:all) do
       @hdata = { :test => { :test2 => 'value1',
                             :test3 => 'value2' },
-                 :test4 => 'value3' }
+                 :test4 => 'value3',
+                 :test6 => { :test2 => 'value4' } }
     end
     it "rh_get(:test) \n    => {:test2 => 'value1', :test3 => 'value2'}" do
       expect(@hdata.rh_get(:test)).to eq(:test2 => 'value1',
@@ -113,9 +175,145 @@ describe 'Recursive Hash/Array extension,' do
     end
 
     it 'rh_get '"\n    => "' original data' do
-      expect(@hdata.rh_get).to eq(:test => { :test2 => 'value1',
-                                             :test3 => 'value2' },
-                                  :test4 => 'value3')
+      expect(@hdata.rh_get).to eq(@hdata)
+    end
+
+    it 'rh_get(:test, /^test/) '"\n    => "' nil' do
+      expect(@hdata.rh_get(:test, /^test/)).to eq(nil)
+    end
+
+    it 'rh_get(:test, /test/) '"\n    => "' %w(value1 value2)' do
+      expect(@hdata.rh_get(:test, /^:test/)).to eq(%w(value1 value2))
+    end
+
+    it 'rh_get(:test, /^test/) '"\n    => "' %w(value1 value2)' do
+      expect(@hdata.rh_get(:test, /test/)).to eq(%w(value1 value2))
+    end
+
+    it 'rh_get(:test, "/:test/") '"\n    => "' %w(value1 value2)' do
+      expect(@hdata.rh_get(:test, '/:test/')).to eq(%w(value1 value2))
+    end
+
+    it 'rh_get(:test, "{/test/}") '"\n    => "' %w(value1 value2)' do
+      expect(@hdata.rh_get(:test, '{/test/}')).to eq(:test2 => 'value1',
+                                                     :test3 => 'value2')
+    end
+
+    it 'rh_get(/test/, :test) '"\n    => "' nil' do
+      expect(@hdata.rh_get(/test/, :test)).to eq(nil)
+    end
+
+    it 'rh_get(/test/, :test2) '"\n    => "' %w(value1 value4' do
+      expect(@hdata.rh_get(/test/, :test2)).to eq(%w(value1 value4))
+    end
+
+    it 'rh_get("{/test/}", :test2) '"\n    => "' %w(value1 value4' do
+      expect(@hdata.rh_get('{/test/}', :test2)).to eq(:test => 'value1',
+                                                      :test6 => 'value4')
+    end
+  end
+
+  context "With {
+        :test => [{ :test2 => 'value1', :test3 => 'value2' },
+                  { :test3 => 'value3' },
+                  { :test4 => { :test5 => 'value4' } }],
+        :test6 => ['value5'],
+        :test7 => [ {:test8 => 'value6'}] }" do
+    before(:all) do
+      @hdata = { :test => [{ :test2 => 'value1', :test3 => 'value2' },
+                           { :test3 => 'value3' },
+                           { :test4 => { :test5 => 'value4' } }],
+                 :test6 => ['value5'],
+                 :test7 => [{ :test8 => 'value6' }] }
+    end
+
+    it 'rh_get(:test, :test) '"\n    => "' nil' do
+      expect(@hdata.rh_get(:test, :test)).to eq(nil)
+    end
+
+    it 'rh_get(:test, :test) '"\n    => "' nil' do
+      expect(@hdata.rh_get(:test, :test6)).to eq(nil)
+    end
+
+    it 'rh_get(:test, :test2) '"\n    => "' %w(value1)' do
+      expect(@hdata.rh_get(:test, :test2)).to eq(%w(value1))
+    end
+
+    it 'rh_get(:test, :test3) '"\n    => "' %w(value2 value3)' do
+      expect(@hdata.rh_get(:test, :test3)).to eq(%w(value2 value3))
+    end
+
+    it 'rh_get(/test/, :test3) '"\n    => "' [%w(value2 value3)]' do
+      expect(@hdata.rh_get(/test/, :test3)).to eq([%w(value2 value3)])
+    end
+
+    it 'rh_get("{/test/}", :test3) '"\n    => "' {:test=>%w(value2 value3)}' do
+      expect(@hdata.rh_get('{/test/}', :test3)).to eq(:test => %w(value2
+                                                                  value3))
+    end
+
+    it 'rh_get(:test, /test/) '"\n    => "' ["value1", "value2", "value3",'\
+       '{ :test5 => "value4" }]' do
+      expect(@hdata.rh_get(:test, /test/)).to eq(['value1', 'value2', 'value3',
+                                                  { :test5 => 'value4' }])
+    end
+
+    it "rh_get(:test, '/test/e') \n    =>  ['value1', 'value2', 'value3',"\
+       "{ :test5 => 'value4' }]" do
+      expect(@hdata.rh_get(:test, '/test/e')).to eq(['value1', 'value2',
+                                                     'value3',
+                                                     { :test5 => 'value4' }])
+    end
+
+    it "rh_get(/test/, '{/test/}') \n    =>  { :test2 => 'value1',"\
+       " :test3 => 'value3', :test4 => { :test5 => 'value4' } } "\
+       '- :test3 gets the latest value !!!' do
+      expect(@hdata.rh_get(/test/, '{/test/}')).to eq([
+        { :test2 => 'value1', :test3 => 'value3',
+          :test4 => { :test5 => 'value4' } },
+        { :test8 => 'value6' }])
+    end
+
+    it "rh_get(/test/, '{/test/e}') \n    => [{ :test2 => 'value1',"\
+       " :test3 => 'value3', :test4 => { :test5 => 'value4' } }, "\
+       "{}, { :test8 => 'value6' }] - :test3 gets the latest value !!!" do
+      expect(@hdata.rh_get(/test/, '{/test/e}')).to eq([
+        { :test2 => 'value1', :test3 => 'value3',
+          :test4 => { :test5 => 'value4' } },
+        {},
+        { :test8 => 'value6' }])
+    end
+
+    it "rh_get('{/test/}', '{/test/e}') \n    => "\
+       ":test => { :test2 => 'value1', :test3 => 'value3',"\
+       " :test4 => { :test5 => 'value4' } },"\
+       ':test6 => {}, '\
+       ":test7 => { :test8 => 'value6' } - :test3 gets the latest value !!!" do
+      expect(@hdata.rh_get('{/test/}', '{/test/e}')).to eq(
+        :test => { :test2 => 'value1', :test3 => 'value3',
+                   :test4 => { :test5 => 'value4' } },
+        :test6 => {},
+        :test7 => { :test8 => 'value6' })
+    end
+
+    it "rh_get(:test, 3) \n    => nil" do
+      expect(@hdata.rh_get(:test, 3)).to eq(nil)
+    end
+
+    it "rh_get(:test, 1) \n    => { :test3 => 'value3' }" do
+      expect(@hdata.rh_get(:test, 1)).to eq(:test3 => 'value3')
+    end
+
+    it "rh_get(:test, 1, :test3) \n    => 'value3'" do
+      expect(@hdata.rh_get(:test, 1, :test3)).to eq('value3')
+    end
+
+    it "rh_get(:test, 2, :test3) \n    => nil" do
+      expect(@hdata.rh_get(:test, 2, :test3)).to eq(nil)
+    end
+
+    it "rh_get(:test, 2, :test4, :test5) \n    => 'value4' " do
+      expect(@hdata.rh_get(:test, 2, :test4, :test5)).to eq('value4')
     end
   end
 
