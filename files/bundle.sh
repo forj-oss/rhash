@@ -16,5 +16,5 @@
 
 cd /src
 bundle
-rake
+rake spec_local
 exit 0

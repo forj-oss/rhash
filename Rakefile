@@ -2,11 +2,18 @@ require 'bundler/gem_tasks'
 require 'rspec/core/rake_task'
 require 'rubocop/rake_task' unless RUBY_VERSION.match(/1\.8/)
 require 'rdoc/task'
+require 'json'
 
 task :default => [:lint, :spec]
 
-desc 'Run the specs.'
-RSpec::Core::RakeTask.new do |t|
+desc 'Run all specs (locally + docker).'
+task :spec => [:spec_local, :spec18]
+
+desc 'Run acceptance test (docker - specs).'
+task :acceptance => [:spec18]
+
+desc 'Run the specs locally.'
+RSpec::Core::RakeTask.new(:spec_local) do |t|
   t.pattern = 'spec/*_spec.rb'
   t.rspec_opts = '-f doc'
 end
@@ -29,15 +36,26 @@ else
   end
 end
 
+# rubocop: disable Style/SpecialGlobalVars
+
 desc 'Run spec with docker for ruby 1.8'
 task :spec18 do
-  system('build/build_with_proxy.sh -t ruby/1.8')
-  `docker inspect subhash`
-  if $?.exitstatus == 0 # rubocop: disable Style/SpecialGlobalVars
-    system('docker start -ai subhash')
+  begin
+    `docker`
+  rescue
+    puts 'Unable to run spec against ruby 1.8: docker not found'
   else
-    system('docker run -it --name subhash -v $(pwd):/src -w /src ruby/1.8 '\
-           '/tmp/bundle.sh')
+    system('build/build_with_proxy.sh -t ruby/1.8')
+    image_id = `docker images ruby/1.8`.split("\n")[1].split[2]
+    c_img = JSON.parse(`docker inspect -f '{{json .}}' subhash`)['Image'][0..11]
+
+    if $?.exitstatus == 0 && image_id == c_img
+      system('docker start -ai subhash')
+    else
+      `docker rm subhash` if $?.exitstatus == 0
+      system('docker run -it --name subhash -v $(pwd):/src -w /src ruby/1.8 '\
+             '/tmp/bundle.sh')
+    end
   end
 end
 
