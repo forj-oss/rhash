@@ -26,9 +26,12 @@ class Array
     key = p[0]
     sp = p.drop(1)
 
-    return _lexist_array(sp, key) if key.is_a?(Fixnum)
+    re, _, opts = _regexp(key)
+    return _keys_match_lexist(re, [], sp, opts) unless re.nil?
 
-    _loop_lexist_array(sp, key)
+    return _lexist_array(sp, key) if [Fixnum, Range].include?(key.class)
+
+    _loop_lexist_array(p, key)
   end
 
   # Recursive Hash deep level existence
@@ -54,9 +57,9 @@ class Array
     re, res, opts = _regexp(key)
     return _keys_match(re, res, sp, opts) unless re.nil?
 
-    return _get_array(sp, key) if key.is_a?(Fixnum)
+    return _get_array(sp, key) if [Fixnum, Range].include?(key.class)
 
-    _loop_get_array(sp, key)
+    _loop_get_array(key, p)
   end
 
   # return an exact clone of the recursive Array and Hash contents.
@@ -189,49 +192,78 @@ class Array
   private
 
   # Loop in array
-  def _loop_get_array(sp, key)
-    ret = []
-    each do |e|
-      next unless e.is_a?(Hash)
-      next unless e.key?(key)
-
-      if sp.length == 0
-        ret << e[key]
-      else
-        ret << e[key].rh_get(sp) if [Array, Hash].include?(e[key].class)
-      end
+  def _loop_get_array(key, p)
+    if key =~ /=\[[0-9]+\.\.[0-9]+\]/
+      found = /=\[([0-9]+)\.\.([0-9]+)\]/.match(key)
+      extract = Range.new(found[1].to_i, found[2].to_i)
+      sp = p.drop(1)
+    elsif key =~ /=\[[0-9]+\]/
+      extract = /=\[([0-9]+)\]/.match(key)[1].to_i
+      sp = p.drop(1)
+    else
+      sp = p.clone
     end
+
+    ret = _loop_array(sp)
+
+    return ret[extract] unless extract.nil?
     return ret if ret.length > 0
     nil
   end
 
+  def _loop_array(sp)
+    ret = []
+    each do |e|
+      if sp.length == 0
+        ret << e
+        next
+      end
+
+      next unless e.structured?
+      found = e.rh_get(*sp)
+      ret << found unless found.nil?
+    end
+    ret
+  end
   # Index provided. return the value of the index.
   def _get_array(sp, key)
     return self[key] if sp.length == 0
 
-    self[key].rh_get(sp) if [Array, Hash].include?(self[key].class)
+    if key.is_a?(Range)
+      res = []
+      self[key].each do |k|
+        next unless k.structured?
+        res << k.rh_get(sp) if k.rh_exist?(sp)
+      end
+      res
+    else
+      self[key].rh_get(sp) if self[key].structured?
+    end
   end
 
+  # Check in existing Array, Fixnum and Range data.
   def _lexist_array(sp, key)
-    return 0 unless key >= 0 && key < length
+    return 0 if _key_out_of_array(key)
+
     return 1 if sp.length == 0
 
-    1 + self[key].rh_lexist?(sp) if [Array, Hash].include?(self[key].class)
+    1 + self[key].rh_lexist?(sp) if self[key].structured?
   end
 
-  def _loop_lexist_array(sp, key)
+  def _key_out_of_array(key)
+    return !(key >= 0 && key < length) if key.is_a?(Fixnum)
+
+    test = 0..(length - 1)
+    !(test.include?(key.first) && test.include?(key.last))
+  end
+
+  # Check under each array element to get result.
+  def _loop_lexist_array(p, _key)
     ret = []
     each do |e|
-      next unless e.is_a?(Hash)
-      next unless e.key?(key)
+      next unless e.structured?
 
-      if sp.length == 0
-        ret << 1
-      else
-        res = 1
-        res += e[key].rh_lexist?(sp) if [Array, Hash].include?(e[key].class)
-        ret << res
-      end
+      ret << e.rh_lexist?(*p)
     end
     ret.length > 0 ? ret.max : 0
   end
@@ -249,6 +281,27 @@ class Array
     nil
   end
 
+  def _keys_match_lexist(re, res, sp, _opts)
+    each do |e|
+      next unless e.is_a?(Hash)
+
+      _keys_match_lexist_hash(re, res, sp, e)
+    end
+    return res.max if res.length > 0
+    0
+  end
+
+  def _keys_match_lexist_hash(re, res, sp, e)
+    e.keys.sort.each do |k|
+      k_re = _key_to_s(k)
+      next unless re.match(k_re)
+
+      v = 1
+      v += e[k].rh_lexist?(sp) if sp.length > 0 && e[k].structured?
+      res << v
+    end
+  end
+
   def _keys_match_hash(re, res, sp, e)
     e.keys.sort.each do |k|
       k_re = _key_to_s(k)
@@ -257,13 +310,18 @@ class Array
       if sp.length == 0
         _update_res(res, k, e[k])
       else
-        v = e[k].rh_get(sp) if [Array, Hash].include?(e[k].class)
+        v = e[k].rh_get(sp) if e[k].structured?
 
         _update_res(res, k, v) unless v.nil?
       end
     end
     res
   end
+end
+
+# Internal function for merge.
+class Array
+  private
 
   def _rh_merge(result, data)
     data = data.clone

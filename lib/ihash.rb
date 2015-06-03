@@ -64,21 +64,31 @@ class Hash
   #
   #   # it is like searching for nothing...
   #   yVal.rh_lexist? => 0
-
+  #
+  # New features 0.1.3
+  #
   def rh_lexist?(*p)
     p = p.flatten
 
     return 0 if p.length == 0
 
-    if p.length == 1
-      return 1 if self.key?(p[0])
-      return 0
-    end
-    return 0 unless self.key?(p[0])
+    key = p[0]
+    sp = p.drop(1)
+
+    selected, key = _erb_select(key)
+    return 0 unless selected
+
+    key = _erb_extract(key)
+
+    re, _, opts = _regexp(key)
+    return _keys_match_lexist(re, [], sp, opts) unless re.nil?
+
+    return 0 unless self.key?(key)
+
+    return 1 if p.length == 1
+
     ret = 0
-    if [Hash, Array].include?(self[p[0]].class)
-      ret = self[p[0]].rh_lexist?(p.drop(1))
-    end
+    ret = self[key].rh_lexist?(*sp) if self[key].structured?
     1 + ret
   end
 
@@ -148,8 +158,8 @@ class Hash
   #     In the subhash structure, each hierachie tree level is a Hash or an
   #     Array.
   #
-  #     At a given level the top key will be interpreted as follow if the object
-  #     is:
+  #     At a given level the top key will be interpreted as follow and used as
+  #     data selection if the object is:
   #     - Hash:
   #       You can define key matching with Regexp or with a structured string:
   #       - Regexp or '/<Regexp>/' or '[<Regexp>]' :
@@ -200,7 +210,7 @@ class Hash
   #   data.rh_get => { :test => {:test2 => 'value1', :test3 => 'value2'},
   #                    :test4 => 'value3'}
   #
-  # New features:
+  # New features: 0.1.2
   #   data.rh_get(:test, /^test/)       # => []
   #   data.rh_get(:test, /^:test/)      # => ['value1', 'value2']
   #   data.rh_get(:test, /^:test.*/)    # => ['value1', 'value2']
@@ -230,12 +240,106 @@ class Hash
   #   data.rh_get(:arr2, 1, :test7)     # => 'value7'
   #   data.rh_get(:arr2, 0, :test7)     # => nil
   #
+  # New features: 0.1.3
+  #
+  #   Introduce ERB context rh_get/exist?/lexist? functions:
+  #     ERB can be used to select a subhash or extract a key.
+  #
+  #     - ERB Selection
+  #       The ERB selection is detected by a string containing
+  #       '<%= ... %>|something'
+  #       The ERB code must return a boolean or 'true' to consider the current
+  #       data context as queriable with a key.
+  #       'something' can be any key (string, symbol or even an ERB extraction)
+  #     - ERB Extraction
+  #       The ERB selection is detected by a string containing simply
+  #       '<%= ... %>'
+  #       The result of that ERB call should return a string which will become a
+  #       key to extract data from the current data context.
+  #
+  #       NOTE! ERB convert any symbol using to_s. If you need to get a key as a
+  #       symbol, you will to add : in front of the context string:
+  #
+  #       Ex:
+  #         RhContext.context = :test
+  #         data.rh_get('<%= context =>') # is equivalent to data.rh_get('test')
+  #
+  #         RhContext.context = ':test'
+  #         data.rh_get('<%= context =>') # is equivalent to data.rh_get(:test)
+  #
+  #     The ERB context by default contains:
+  #     - at least a 'data' attribute. It contains the current Hash/Array
+  #       level data in the data structure hierarchy.
+  #     - optionally a 'context' attribute. Contains any kind of data.
+  #       This is typically set before any call to rh_* functions.
+  #
+  #     you can introduce more data in the context, by creating a derived class
+  #     from RhContext.ERBConfig. This will ensure attribute data/context exist
+  #     in the context.
+  #     Ex:
+  #
+  #         class MyContext < RhContext::ERBConfig
+  #           attr_accessor :config # Added config in context
+  #         end
+  #
+  #         RhContext.erb = MyContext.new
+  #         RhContext.erb.config = my_config
+  #         data.rh_get(...)
+  #
+  #     data = YAML.parse("---
+  #     :test:
+  #       :test2: value1
+  #       :test3: value2
+  #     :test4: value3
+  #     :arr1: [ 4, value4]
+  #     :arr2:
+  #     - :test5: value5
+  #       :test6: value6
+  #     - :test7: value7
+  #       :test8
+  #       :test5: value8
+  #     - :test5: value9")
+  #
+  #     # Default context:
+  #     RhContext.erb = nil
+  #     # Filtering using |
+  #     data.rh_get(:arr2, '<%= data.key?(:test8) %>|:test5')
+  #       # => ['value8']
+  #     RhContext.context = :test6
+  #     data.rh_get(:arr2, '<%= context %>')
+  #       # => ['value6']
+  #
+  #   Introduce Array extraction (Fixnum and Range)
+  #   When a data at a current level is an Array, get/exist?/lexist? interpret
+  #   - the string '=[<Fixnum|Range>]' where
+  #     - Fixnum : From found result, return the content of result[<Fixnum>]
+  #       => subhash data found. It can return nil
+  #     - Range : From found result, return the Range context of result[<Range>]
+  #       => Array of (subhash data found)
+  #    - the Range. complete the Array index selection.
+  #      ex: [:test1, {:test2 => :value1}].rh_get(0..1, :test2)
+  #
+  #     # data extraction. By default:
+  #     # data.rh_get(:arr2, :test5) return ['value5', 'value8', 'value9']
+  #     # then
+  #     data.rh_get(:arr2, '=[0]', :test5)    # => 'value5'
+  #     data.rh_get(:arr2, '=[0..1]', :test5) # => ['value5', 'value8']
+  #     data.rh_get(:arr2, '=[0..3]', :test5) # => ['value5', 'value8','value9']
+  #
+  #     # Data selection:
+  #     data.rh_get(:arr2, 0..1, :test5)      # => ['value5', 'value8']
+  #     data.rh_get(:arr2, 1..2, :test5)      # => ['value8', 'value9']
   def rh_get(*p)
     p = p.flatten
     return self if p.length == 0
 
     key = p[0]
     sp = p.drop(1)
+
+    selected, key = _erb_select(key)
+    return nil unless selected
+
+    key = _erb_extract(key)
 
     re, res, opts = _regexp(key)
     return _keys_match(re, res, sp, opts) unless re.nil?
@@ -245,7 +349,7 @@ class Hash
       return nil
     end
 
-    return self[key].rh_get(sp) if [Array, Hash].include?(self[key].class)
+    return self[key].rh_get(*sp) if [Array, Hash].include?(self[key].class)
     nil
   end
 
@@ -504,6 +608,26 @@ end
 # Recursive Hash added to the Hash class
 class Hash
   private
+
+  def _keys_match_lexist(re, res, sp, _opts)
+    _keys_match_loop_lexist(re, res, sp)
+
+    return 1 + res.max if res.length > 0
+    0
+  end
+
+  def _keys_match_loop_lexist(re, res, sp)
+    keys.sort.each do |k|
+      k_re = _key_to_s(k)
+      next unless re.match(k_re)
+
+      if sp.length == 0
+        res << 1
+      else
+        res << self[k].rh_lexist?(sp) if [Array, Hash].include?(self[k].class)
+      end
+    end
+  end
 
   def _keys_match(re, res, sp, opts)
     empty = false

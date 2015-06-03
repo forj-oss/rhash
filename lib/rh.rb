@@ -14,6 +14,48 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
+# Recursive Hash context
+module RhContext
+  # Module attributes
+  class << self
+    attr_accessor :erb
+  end
+
+  # ERBConfig context for subhash selection, or filter
+  class ERBConfig
+    attr_accessor :data
+    attr_accessor :context
+
+    # Bind this limited class with ERB templates
+    def get_binding # rubocop: disable AccessorMethodName
+      binding
+    end
+  end
+
+  module_function
+
+  def get(str)
+    return str if @erb.nil?
+    ERB.new(str).result(@erb.get_binding)
+  end
+
+  def data=(data)
+    @erb = ERBConfig.new if @erb.nil?
+
+    @erb.data = data
+  rescue
+    return
+  end
+
+  def context=(data)
+    @erb = ERBConfig.new if @erb.nil?
+
+    @erb.context = data
+  rescue
+    return
+  end
+end
+
 # Rh common module included in Hash and Array class.
 module Rh
   public
@@ -26,7 +68,38 @@ module Rh
     _rh_remove_control(rh_clone)
   end
 
+  def structured?
+    true
+  end
+
   private
+
+  # Return the erb call return
+  # true otherwise ie Selected by default.
+  def _erb_select(key)
+    return true, key unless key.is_a?(String) && key =~ /^<%=.*%>\|/
+    RhContext.data = self
+
+    found = /^(<%=.*%>)\|/.match(key)
+    key = key.clone
+    key[found[0]] = ''
+    [RhContext.get(found[1]) == 'true', _convert_key(key)]
+  end
+
+  def _erb_extract(key)
+    return key unless key.is_a?(String) && key =~ /^<%=.*%>[^|]?/
+    RhContext.data = self
+
+    _convert_key(RhContext.get(key))
+  end
+
+  def _convert_key(key)
+    return key unless key.is_a?(String)
+    # Ruby 1.8   : 'ab'[1] => 98 and 'ab'[1, 1] => 'b'
+    # Ruby 1.9+  : 'ab'[1] => 'b' and 'ab'[1, 1] => 'b'
+    return key[1..-1].to_sym if key[0, 1] == ':'
+    key
+  end
 
   # Function which will parse arrays in hierarchie and will remove any control
   # element (index 0)
@@ -153,5 +226,12 @@ module RhGet
   def _update_res(res, k, v)
     res << v   if res.is_a?(Array)
     res[k] = v if res.is_a?(Hash)
+  end
+end
+
+# By default all object are considered as unstructured, ie not Hash or Array.
+class Object
+  def structured?
+    false
   end
 end
