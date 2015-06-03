@@ -47,7 +47,9 @@ task :spec18 do
   else
     system('build/build_with_proxy.sh -t ruby/1.8')
     image_id = `docker images ruby/1.8`.split("\n")[1].split[2]
-    c_img = JSON.parse(`docker inspect -f '{{json .}}' subhash`)['Image'][0..11]
+    res = `docker inspect -f '{{json .}}' subhash`
+    c_img = ''
+    c_img = JSON.parse(res)['Image'][0..11] if $?.exitstatus == 0
 
     if $?.exitstatus == 0 && image_id == c_img
       system('docker start -ai subhash')

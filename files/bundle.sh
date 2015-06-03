@@ -17,4 +17,3 @@
 cd /src
 bundle
 rake spec_local
-exit 0
