@@ -133,6 +133,10 @@ describe 'Recursive Hash/Array extension,' do
       expect(@hdata.rh_lexist?(:test, 0..2, :test4, :test5)).to eq(4)
     end
 
+    it "rh_lexist?(//) \n    => 1" do
+      expect(@hdata.rh_lexist?(//)).to eq(1)
+    end
+
     it "rh_lexist?(:test, /test[23]/) \n    => 2" do
       expect(@hdata.rh_lexist?(:test, /test[23]/)).to eq(2)
     end

@@ -198,8 +198,8 @@ end
 # Module to implement common function for Hash and Array class
 module RhGet
   def _regexp(key)
-    return key, [] if key.is_a?(Regexp)
-    return nil, nil unless key.is_a?(String)
+    return [key, [], nil] if key.is_a?(Regexp)
+    return [nil, nil, nil] unless key.is_a?(String)
 
     regs = []
     regs << [%r{^/(.*)/(e)?$},     []]
@@ -213,7 +213,7 @@ module RhGet
     regs.each do |r|
       init = r[1]
       reg = r[0].match(key)
-      return Regexp.new(reg[1]), init, reg[2] if reg && reg[1]
+      return [Regexp.new(reg[1]), init, reg[2]] if reg && reg[1]
     end
     [nil, nil, nil]
   end

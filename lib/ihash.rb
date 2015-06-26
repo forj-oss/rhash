@@ -612,7 +612,7 @@ class Hash
   def _keys_match_lexist(re, res, sp, _opts)
     _keys_match_loop_lexist(re, res, sp)
 
-    return 1 + res.max if res.length > 0
+    return res.max if res.length > 0
     0
   end
 
@@ -624,7 +624,9 @@ class Hash
       if sp.length == 0
         res << 1
       else
-        res << self[k].rh_lexist?(sp) if [Array, Hash].include?(self[k].class)
+        if [Array, Hash].include?(self[k].class)
+          res << 1 + self[k].rh_lexist?(sp)
+        end
       end
     end
   end
