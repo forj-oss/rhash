@@ -206,9 +206,8 @@ class Array
 
     ret = _loop_array(sp)
 
-    return ret[extract] unless extract.nil?
-    return ret if ret.length > 0
-    nil
+    return ret[extract] if ret.is_a?(Array) && !extract.nil?
+    ret
   end
 
   def _loop_array(sp)
@@ -223,9 +222,26 @@ class Array
       found = e.rh_get(*sp)
       ret << found unless found.nil?
     end
-    ret
+    _loop_array_result(ret, sp)
   end
-  # Index provided. return the value of the index.
+
+  def _loop_array_result(ret, sp)
+    return _array_result(ret) if sp.length == 0
+
+    found = _erb_select_found(sp[0])
+    if found && !found[2].nil?
+      return ret[0] if found[2].include?('0') && ret.length == 1
+      return ret if found[2].include?('e')
+    end
+    _array_result(ret)
+  end
+
+  def _array_result(ret)
+    return ret if ret.length > 0
+    nil
+  end
+
+  # I ndex provided. return the value of the index.
   def _get_array(sp, key)
     return self[key] if sp.length == 0
 
@@ -269,14 +285,15 @@ class Array
   end
 
   def _keys_match(re, res, sp, opts)
-    empty = false
-    empty = opts.include?('e') if opts
+    empty, one = _key_options(opts)
 
     each do |e|
       next unless e.is_a?(Hash)
 
       _keys_match_hash(re, res, sp, e)
     end
+
+    return res[0] if one && res.length == 1
     return res if empty || res.length > 0
     nil
   end
@@ -308,11 +325,11 @@ class Array
       next unless re.match(k_re)
 
       if sp.length == 0
-        _update_res(res, k, e[k])
+        _update_res(res, k, e[k], false)
       else
         v = e[k].rh_get(sp) if e[k].structured?
 
-        _update_res(res, k, v) unless v.nil?
+        _update_res(res, k, v, false) unless v.nil?
       end
     end
     res

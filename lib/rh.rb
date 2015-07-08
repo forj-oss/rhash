@@ -77,13 +77,20 @@ module Rh
   # Return the erb call return
   # true otherwise ie Selected by default.
   def _erb_select(key)
-    return true, key unless key.is_a?(String) && key =~ /^<%=.*%>\|/
+    found = _erb_select_found(key)
+    return true, key unless found
+
     RhContext.data = self
 
-    found = /^(<%=.*%>)\|/.match(key)
     key = key.clone
     key[found[0]] = ''
     [RhContext.get(found[1]) == 'true', _convert_key(key)]
+  end
+
+  def _erb_select_found(key)
+    return false unless key.is_a?(String) && key =~ /^<%=.*%>([0-9a-z]*)?\|/
+
+    /^(<%=.*%>)([0-9a-z]*)?\|/.match(key)
   end
 
   def _erb_extract(key)
@@ -202,11 +209,19 @@ module RhGet
     return [nil, nil, nil] unless key.is_a?(String)
 
     regs = []
-    regs << [%r{^/(.*)/(e)?$},     []]
-    regs << [%r{^\[/(.*)/(e)?\]$}, []]
-    regs << [%r{^\{/(.*)/(e)?\}$}, {}]
+    regs << [%r{^/(.*)/([e0])*$},     []]
+    regs << [%r{^\[/(.*)/([e0])*\]$}, []]
+    regs << [%r{^\{/(.*)/([e0])*\}$}, {}]
 
     _loop_on_regs(regs, key)
+  end
+
+  def _key_options(opts)
+    empty = false
+    empty = opts.include?('e') if opts
+    one = false
+    one = opts.include?('0') if opts
+    [empty, one]
   end
 
   def _loop_on_regs(regs, key)
@@ -223,9 +238,14 @@ module RhGet
     k
   end
 
-  def _update_res(res, k, v)
+  def _update_res(res, k, v, one)
     res << v   if res.is_a?(Array)
-    res[k] = v if res.is_a?(Hash)
+    return unless res.is_a?(Hash)
+    if one && v.is_a?(Array) && v.length == 1
+      res[k] = v[0]
+    else
+      res[k] = v
+    end
   end
 end
 

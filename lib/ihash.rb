@@ -155,30 +155,149 @@ class Hash
   #   - +p+    : Array of String/Symbol or Regexp. It contains the list of keys
   #     tree to follow and check existence in self.
   #
-  #     In the subhash structure, each hierachie tree level is a Hash or an
+  #     In the subhash structure, each hierachy tree level is a Hash or an
   #     Array.
   #
   #     At a given level the top key will be interpreted as follow and used as
   #     data selection if the object is:
   #     - Hash:
-  #       You can define key matching with Regexp or with a structured string:
-  #       - Regexp or '/<Regexp>/' or '[<Regexp>]' :
-  #         For each key in self tree, matching <Regexp>, the value associated
-  #         to the key will be added as a new item in an array.
+  #       - RegExp match: (Version 0.1.2)
+  #         You can define key matching with Regexp or with a structured string:
+  #         - Regexp or '/<Regexp>/<opts>' or '[<Regexp>]' :
+  #           For each key in self tree, matching <Regexp>, the value associated
+  #           to the key will be added as a new item in an ARRAY.
   #
-  #       - '{<regexp>}' :
-  #         For each key in self tree, matching <Regexp>, the value and the key
-  #         will be added as a new item (key => value) in a Hash
+  #         - '{/<Regexp>/<opts>}' :
+  #           For each key in self tree, matching <Regexp>, the value and the
+  #           key will be added as a new item (key => value) in a Hash
+  #
+  #         '<Regexp' is a string representing the Regexp to use.
+  #         Please note that :
+  #         data.rh_get(/test/) is equivalent to data.rh_get('/test/'). This
+  #         second syntax provide additional feature, with <opts>
+  #
+  #         '<opts>' is an optional string representing a list of characters
+  #         to set options for matching results.
+  #         Options supported are:
+  #         - 'e' : If nothing match, the selection will return an empty Array
+  #           By default, it return nil, Usually, it is eliminated in the
+  #           final result. (Version 0.1.3)
+  #         - '0' : If only one match, the selection will return the value
+  #           of that alone matching RegExp. (Version 0.1.5)
+  #
+  #       - ERB can be used to select a subhash or extract a key.
+  #         (Version 0.1.3)
+  #         - ERB Selection
+  #           The ERB selection is detected by a string containing
+  #           '<%= ... %>opts|something'
+  #           The ERB code must return a boolean or 'true' to consider the
+  #           current data context as queriable with a key.
+  #           - 'something' can be any key (string, symbol or even an ERB
+  #             extraction)
+  #           '<opts>' is an optional string representing a list of characters
+  #           to set options for matching results. (Version 0.1.5)
+  #           Options supported are:
+  #           - 'e' : If nothing match, the selection will return an empty Array
+  #             By default, it return nil, Usually, it is eliminated in the
+  #             final result.
+  #           - '0' : If only one match, the selection will return the value
+  #             of that alone matching RegExp.
+  #         - ERB Extraction
+  #           The ERB selection is detected by a string containing simply
+  #           '<%= ... %>'
+  #           The result of that ERB call should return a string which will
+  #           become a key to extract data from the current data context.
+  #
+  #           NOTE! ERB convert any symbol using to_s. If you need to get a key
+  #           as a symbol, you will to add : in front of the context string:
+  #
+  #           Ex:
+  #             RhContext.context = :test
+  #             data.rh_get('<%= context =>') # is equivalent to
+  #                                           # data.rh_get('test')
+  #
+  #             RhContext.context = ':test'
+  #             data.rh_get('<%= context =>') # is equivalent to
+  #                                           # data.rh_get(:test)
+  #
+  #         The ERB context by default contains:
+  #         - at least a 'data' attribute. It contains the current Hash/Array
+  #           level data in the data structure hierarchy.
+  #         - optionally a 'context' attribute. Contains any kind of data.
+  #           This is typically set before any call to rh_* functions.
+  #
+  #         you can introduce more data in the context, by creating a derived
+  #         class from RhContext.ERBConfig. This will ensure attribute
+  #         data/context exist in the context.
+  #         Ex:
+  #
+  #             class MyContext < RhContext::ERBConfig
+  #               attr_accessor :config # Added config in context
+  #             end
+  #
+  #             RhContext.erb = MyContext.new
+  #             RhContext.erb.config = my_config
+  #             data.rh_get(...)
+  #
+  #         data = YAML.parse("---
+  #         :test:
+  #           :test2: value1
+  #           :test3: value2
+  #         :test4: value3
+  #         :arr1: [ 4, value4]
+  #         :arr2:
+  #         - :test5: value5
+  #           :test6: value6
+  #         - :test7: value7
+  #           :test8
+  #           :test5: value8
+  #         - :test5: value9")
+  #
+  #         # Default context:
+  #         RhContext.erb = nil
+  #         # Filtering using |
+  #         data.rh_get(:arr2, '<%= data.key?(:test8) %>|:test5')
+  #           # => ['value8']
+  #         RhContext.context = :test6
+  #         data.rh_get(:arr2, '<%= context %>')
+  #           # => ['value6']
   #
   #     - Array:
-  #       If the top key type is:
+  #       *Data selection :* If the top key type is:
   #       - Fixnum : The key is considered as the Array index.
-  #         it will get in self[p[0]]
+  #         it will get in self[p[0]] (Version 0.1.3)
   #
-  #       - String/Symbol : loop in array to find in Hash, the key to get value
-  #         and go on in the tree if possible. it must return an array of result
-  #         In case of symbol matching, the symbol is converted in string with a
-  #         ':' at pos 0 in the string, then start match process.
+  #             # Data selection:
+  #             data.rh_get(:arr2, 1, :test5)      # => 'value8'
+  #
+  #       - Range : Range extract only some element from the Array.
+  #         (Version 0.1.3)
+  #
+  #             # Data selection:
+  #             data.rh_get(:arr2, 0..1, :test5)      # => ['value5', 'value8']
+  #             data.rh_get(:arr2, 1..2, :test5)      # => ['value8', 'value9']
+  #
+  #       *Data extraction :* If the top key type is:
+  #       - '=[<Fixnum|Range>]' where
+  #         - Fixnum : From found result, return the content of result[<Fixnum>]
+  #           => subhash data found. It can return nil (Version 0.1.3)
+  #         - Range : From found result, return the Range context of
+  #           result[<Range>]
+  #           => Array of (subhash data found) (Version 0.1.3)
+  #
+  #             # data extraction. By default:
+  #             # data.rh_get(:arr2, :test5) return ['value5','value8','value9']
+  #             # then
+  #             data.rh_get(:arr2, '=[0]', :test5)    # => 'value5'
+  #             data.rh_get(:arr2, '=[0..1]', :test5)
+  #             # => ['value5', 'value8']
+  #             data.rh_get(:arr2, '=[0..3]', :test5)
+  #             # => ['value5', 'value8','value9']
+  #
+  #       - String/Symbol : loop in array to find in elements an Hash to apply.
+  #         So, for each Hash elements, it follows the Hash rule.
+  #         The result will be stored in an Array of matching elements.
+  #         (Version 0.1.3)
   #
   # * *Returns* :
   #   - +value+ : Represents the data found in the tree. Can be of any type.
@@ -188,147 +307,69 @@ class Hash
   #
   # Example:(implemented in spec)
   #
-  #    data =
-  #    :test:
-  #      :test2 = 'value1'
-  #      :test3 => 'value2'
-  #    :test4 = 'value3'
-  #    :arr1: [ 4, 'value4']
-  #    :arr2:
-  #    - :test5 = 'value5'
-  #      :test6 = 'value6'
-  #    - :test7 = 'value7'
-  #      :test8
-  #      :test5 = 'value8'
+  #    data = {
+  #      :test => {
+  #        :test2 = 'value1'
+  #        :test3 => 'value2' },
+  #      :test4 => 'value3'
+  #      :arr1 => [ 4, 'value4']
+  #      :arr2 => [{ :test5 = 'value5', :test6 = 'value6'},
+  #                { :test7 = 'value7'},
+  #                :test8,
+  #                { :test5 = 'value8' }
+  #               ]
+  #    }
   #
   # so:
-  #   data.rh_get(:test) => {:test2 => 'value1', :test3 => 'value2'}
-  #   data.rh_get(:test5) => nil
-  #   data.rh_get(:test, :test2) => 'value1'
-  #   data.rh_get(:test, :test2, :test5) => nil
-  #   data.rh_get(:test, :test5 ) => nil
-  #   data.rh_get => { :test => {:test2 => 'value1', :test3 => 'value2'},
+  #     data.rh_get(:test) => {:test2 => 'value1', :test3 => 'value2'}
+  #     data.rh_get(:test5) => nil
+  #     data.rh_get(:test, :test2) => 'value1'
+  #     data.rh_get(:test, :test2, :test5) => nil
+  #     data.rh_get(:test, :test5 ) => nil
+  #     data.rh_get => { :test => {:test2 => 'value1', :test3 => 'value2'},
   #                    :test4 => 'value3'}
   #
   # New features: 0.1.2
-  #   data.rh_get(:test, /^test/)       # => []
-  #   data.rh_get(:test, /^:test/)      # => ['value1', 'value2']
-  #   data.rh_get(:test, /^:test.*/)    # => ['value1', 'value2']
-  #   data.rh_get(:test, '/:test.*/')   # => ['value1', 'value2']
-  #   data.rh_get(:test, '/:test.*/')   # => ['value1', 'value2']
-  #   data.rh_get(:test, '[/:test.*/]') # => ['value1', 'value2']
-  #   data.rh_get(:test, '{/:test2/}')  # => {:test2 => 'value1'}
-  #   data.rh_get(:test, '{/test/}')
-  #     # => {:test2 => 'value1', :test3 => 'value2'}
-  #   data.rh_get(:test, '{:test2}')    # => {:test2 => 'value1'}
-  #   data.rh_get(:test, '{:test2}')    # => {:test2 => 'value1'}
+  #     data.rh_get(:test, /^test/)       # => []
+  #     data.rh_get(:test, /^:test/)      # => ['value1', 'value2']
+  #     data.rh_get(:test, /^:test.*/)    # => ['value1', 'value2']
+  #     data.rh_get(:test, '/:test.*/')   # => ['value1', 'value2']
+  #     data.rh_get(:test, '/:test.*/')   # => ['value1', 'value2']
+  #     data.rh_get(:test, '[/:test.*/]') # => ['value1', 'value2']
+  #     data.rh_get(:test, '{/:test2/}')  # => {:test2 => 'value1'}
+  #     data.rh_get(:test, '{/test/}')
+  #       # => {:test2 => 'value1', :test3 => 'value2'}
+  #     data.rh_get(:test, '{:test2}')    # => {:test2 => 'value1'}
+  #     data.rh_get(:test, '{:test2}')    # => {:test2 => 'value1'}
   #
-  #   data.rh_get(:arr2, :test6)        # => ['value6']
-  #   data.rh_get(:arr2, :test8)        # => nil
-  #   data.rh_get(:arr2, :test5)        # => ['value5', 'value8']
-  #   data.rh_get(/arr/, :test5)        # => [['value5', 'value8']]
-  #   data.rh_get('{/arr/}', :test5)    # => { :arr2 => ['value5', 'value8']}
-  #   data.rh_get('{/arr/}', '{:test5}')
-  #     # => { :arr2 => {:test5 => ['value5', 'value8']}}
+  #     data.rh_get(:arr2, :test6)        # => ['value6']
+  #     data.rh_get(:arr2, :test8)        # => nil
+  #     data.rh_get(:arr2, :test5)        # => ['value5', 'value8']
+  #     data.rh_get(/arr/, :test5)        # => [['value5', 'value8']]
+  #     data.rh_get('{/arr/}', :test5)    # => { :arr2 => ['value5', 'value8']}
+  #     data.rh_get('{/arr/}', '{:test5}')
+  #       # => { :arr2 => {:test5 => ['value5', 'value8']}}
   #
-  #   data.rh_get(:arr2, 2)             # => nil
-  #   data.rh_get(:arr2, 0)             # => { :test5 = 'value5',
-  #                                     #      :test6 = 'value6'}
-  #   data.rh_get(:arr2, 1)             # => { :test7 = 'value7',
-  #                                     #      :test8
-  #                                     #      :test5 = 'value8' }
-  #   data.rh_get(:arr2, 1, :test7)     # => 'value7'
-  #   data.rh_get(:arr2, 0, :test7)     # => nil
+  #     data.rh_get(:arr2, 2)             # => nil
+  #     data.rh_get(:arr2, 0)             # => { :test5 = 'value5',
+  #                                       #      :test6 = 'value6'}
+  #     data.rh_get(:arr2, 1)             # => { :test7 = 'value7',
+  #                                       #      :test8
+  #                                       #      :test5 = 'value8' }
+  #     data.rh_get(:arr2, 1, :test7)     # => 'value7'
+  #     data.rh_get(:arr2, 0, :test7)     # => nil
   #
   # New features: 0.1.3
   #
-  #   Introduce ERB context rh_get/exist?/lexist? functions:
-  #     ERB can be used to select a subhash or extract a key.
+  # - Introduce ERB context rh_get/exist?/lexist? functions:
+  # - Introduce Array extraction (Fixnum and Range)
   #
-  #     - ERB Selection
-  #       The ERB selection is detected by a string containing
-  #       '<%= ... %>|something'
-  #       The ERB code must return a boolean or 'true' to consider the current
-  #       data context as queriable with a key.
-  #       'something' can be any key (string, symbol or even an ERB extraction)
-  #     - ERB Extraction
-  #       The ERB selection is detected by a string containing simply
-  #       '<%= ... %>'
-  #       The result of that ERB call should return a string which will become a
-  #       key to extract data from the current data context.
+  # New features: 0.1.5
   #
-  #       NOTE! ERB convert any symbol using to_s. If you need to get a key as a
-  #       symbol, you will to add : in front of the context string:
+  # A new option '0' has been added to the RegExp match
+  # It permits to return the value of element 0 of the array built by the
+  # matching result.
   #
-  #       Ex:
-  #         RhContext.context = :test
-  #         data.rh_get('<%= context =>') # is equivalent to data.rh_get('test')
-  #
-  #         RhContext.context = ':test'
-  #         data.rh_get('<%= context =>') # is equivalent to data.rh_get(:test)
-  #
-  #     The ERB context by default contains:
-  #     - at least a 'data' attribute. It contains the current Hash/Array
-  #       level data in the data structure hierarchy.
-  #     - optionally a 'context' attribute. Contains any kind of data.
-  #       This is typically set before any call to rh_* functions.
-  #
-  #     you can introduce more data in the context, by creating a derived class
-  #     from RhContext.ERBConfig. This will ensure attribute data/context exist
-  #     in the context.
-  #     Ex:
-  #
-  #         class MyContext < RhContext::ERBConfig
-  #           attr_accessor :config # Added config in context
-  #         end
-  #
-  #         RhContext.erb = MyContext.new
-  #         RhContext.erb.config = my_config
-  #         data.rh_get(...)
-  #
-  #     data = YAML.parse("---
-  #     :test:
-  #       :test2: value1
-  #       :test3: value2
-  #     :test4: value3
-  #     :arr1: [ 4, value4]
-  #     :arr2:
-  #     - :test5: value5
-  #       :test6: value6
-  #     - :test7: value7
-  #       :test8
-  #       :test5: value8
-  #     - :test5: value9")
-  #
-  #     # Default context:
-  #     RhContext.erb = nil
-  #     # Filtering using |
-  #     data.rh_get(:arr2, '<%= data.key?(:test8) %>|:test5')
-  #       # => ['value8']
-  #     RhContext.context = :test6
-  #     data.rh_get(:arr2, '<%= context %>')
-  #       # => ['value6']
-  #
-  #   Introduce Array extraction (Fixnum and Range)
-  #   When a data at a current level is an Array, get/exist?/lexist? interpret
-  #   - the string '=[<Fixnum|Range>]' where
-  #     - Fixnum : From found result, return the content of result[<Fixnum>]
-  #       => subhash data found. It can return nil
-  #     - Range : From found result, return the Range context of result[<Range>]
-  #       => Array of (subhash data found)
-  #    - the Range. complete the Array index selection.
-  #      ex: [:test1, {:test2 => :value1}].rh_get(0..1, :test2)
-  #
-  #     # data extraction. By default:
-  #     # data.rh_get(:arr2, :test5) return ['value5', 'value8', 'value9']
-  #     # then
-  #     data.rh_get(:arr2, '=[0]', :test5)    # => 'value5'
-  #     data.rh_get(:arr2, '=[0..1]', :test5) # => ['value5', 'value8']
-  #     data.rh_get(:arr2, '=[0..3]', :test5) # => ['value5', 'value8','value9']
-  #
-  #     # Data selection:
-  #     data.rh_get(:arr2, 0..1, :test5)      # => ['value5', 'value8']
-  #     data.rh_get(:arr2, 1..2, :test5)      # => ['value8', 'value9']
   def rh_get(*p)
     p = p.flatten
     return self if p.length == 0
@@ -632,26 +673,28 @@ class Hash
   end
 
   def _keys_match(re, res, sp, opts)
-    empty = false
-    empty = opts.include?('e') if opts
+    empty, one = _key_options(opts)
 
-    _keys_match_loop(re, res, sp)
+    _keys_match_loop(re, res, sp, opts)
 
+    return res[0] if one && res.is_a?(Array) && res.length == 1
     return res if empty || res.length > 0
     nil
   end
 
-  def _keys_match_loop(re, res, sp)
+  def _keys_match_loop(re, res, sp, opts)
+    _, one = _key_options(opts)
+
     keys.sort.each do |k|
       k_re = _key_to_s(k)
       next unless re.match(k_re)
 
       if sp.length == 0
-        _update_res(res, k, self[k])
+        _update_res(res, k, self[k], one)
       else
         v = self[k].rh_get(sp) if [Array, Hash].include?(self[k].class)
 
-        _update_res(res, k, v) unless v.nil?
+        _update_res(res, k, v, one) unless v.nil?
       end
     end
   end

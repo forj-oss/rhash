@@ -359,14 +359,21 @@ describe 'Recursive Hash/Array extension,' do
                   { :test3 => 'value3' },
                   { :test4 => { :test5 => 'value4' } }],
         :test6 => ['value5'],
-        :test7 => [ {:test8 => 'value6'}, 'value7'] }" do
+        :test7 => [ {:test8 => 'value6'}, 'value7'],
+        :_test1  => 'value8',
+        :_test10 => 'value9',
+        :_test2  => 'value10' \n"\
+        '}' do
     before(:all) do
       @hdata = { :test => [{ :test2 => 'value1', :test3 => 'value2' },
                            { :test4 => { :test5 => 'value4' } },
                            { :test3 => 'value3' }],
                  :test6 => ['value5'],
-                 :test7 => [{ :test8 => 'value6' },
-                            'value7'] }
+                 :test7 => [{ :test8 => 'value6' }, 'value7'],
+                 :_test1 => 'value8',
+                 :_test10 => 'value9',
+                 :_test2 => 'value10'
+               }
     end
 
     it 'rh_get(:test, :test) '"\n    => "' nil' do
@@ -385,13 +392,13 @@ describe 'Recursive Hash/Array extension,' do
       expect(@hdata.rh_get(:test, :test3)).to eq(%w(value2 value3))
     end
 
-    it 'rh_get(/test/, :test3) '"\n    => "' [%w(value2 value3)]' do
-      expect(@hdata.rh_get(/test/, :test3)).to eq([%w(value2 value3)])
+    it 'rh_get(/^:test/, :test3) '"\n    => "' [%w(value2 value3)]' do
+      expect(@hdata.rh_get(/^:test/, :test3)).to eq([%w(value2 value3)])
     end
 
-    it 'rh_get("{/test/}", :test3) '"\n    => "' {:test=>%w(value2 value3)}' do
-      expect(@hdata.rh_get('{/test/}', :test3)).to eq(:test => %w(value2
-                                                                  value3))
+    it "rh_get('{/^:test/}', :test3) \n    =>  {:test=>%w(value2 value3)}" do
+      expect(@hdata.rh_get('{/^:test/}', :test3)).to eq(:test => %w(value2
+                                                                    value3))
     end
 
     it 'rh_get(:test, /test/) '"\n    => "' ["value1", "value2", "value3",'\
@@ -408,35 +415,57 @@ describe 'Recursive Hash/Array extension,' do
                                                      'value3'])
     end
 
-    it "rh_get(/test/, '{/test/}') \n    =>  { :test2 => 'value1',"\
+    it "rh_get(/:test/, '{/test/}') \n    =>  { :test2 => 'value1',"\
        " :test3 => 'value3', :test4 => { :test5 => 'value4' } } "\
        '- :test3 gets the latest value !!!' do
-      expect(@hdata.rh_get(/test/, '{/test/}')).to eq([
+      expect(@hdata.rh_get(/:test/, '{/test/}')).to eq([
         { :test2 => 'value1', :test3 => 'value3',
           :test4 => { :test5 => 'value4' } },
         { :test8 => 'value6' }])
     end
 
-    it "rh_get(/test/, '{/test/e}') \n    => [{ :test2 => 'value1',"\
+    it "rh_get(/:test/, '{/test/e}') \n    => [{ :test2 => 'value1',"\
        " :test3 => 'value3', :test4 => { :test5 => 'value4' } }, "\
        "{}, { :test8 => 'value6' }] - :test3 gets the latest value !!!" do
-      expect(@hdata.rh_get(/test/, '{/test/e}')).to eq([
+      expect(@hdata.rh_get(/:test/, '{/test/e}')).to eq([
         { :test2 => 'value1', :test3 => 'value3',
           :test4 => { :test5 => 'value4' } },
         {},
         { :test8 => 'value6' }])
     end
 
-    it "rh_get('{/test/}', '{/test/e}') \n    => "\
+    it "rh_get('{/:test/}', '{/test/e}') \n    => "\
        ":test => { :test2 => 'value1', :test3 => 'value3',"\
        " :test4 => { :test5 => 'value4' } },"\
        ':test6 => {}, '\
        ":test7 => { :test8 => 'value6' } - :test3 gets the latest value !!!" do
-      expect(@hdata.rh_get('{/test/}', '{/test/e}')).to eq(
+      expect(@hdata.rh_get('{/:test/}', '{/test/e}')).to eq(
         :test => { :test2 => 'value1', :test3 => 'value3',
                    :test4 => { :test5 => 'value4' } },
         :test6 => {},
         :test7 => { :test8 => 'value6' })
+    end
+
+    it "rh_get('/_test1/') \n    => "\
+       ":_test1 => ['value8', 'value9']" do
+      expect(@hdata.rh_get(/_test1/)).to eq(%w(value8 value9))
+    end
+
+    it "rh_get('/_test1/0') \n    => "\
+       ":_test1 => ['value8', 'value9'] "\
+       ': opt 0 - No change. 2 elements found.' do
+      expect(@hdata.rh_get('/_test1/0')).to eq(%w(value8 value9))
+    end
+
+    it "rh_get('/_test2/') \n    => "\
+       ":_test1 => ['value10']" do
+      expect(@hdata.rh_get(/_test2/)).to eq(['value10'])
+    end
+
+    it "rh_get('/_test2/0') \n    => "\
+       ":_test1 => 'value10'"\
+       ': opt 0 - 1 element found. So, get value of element 0.' do
+      expect(@hdata.rh_get('/_test2/0')).to eq('value10')
     end
 
     it "rh_get(:test, 3) \n    => nil" do
@@ -1004,6 +1033,142 @@ describe 'Recursive Hash/Array extension,' do
     end
     it 'rh_key_to_symbol(4) same like rh_key_to_symbol(3)' do
       expect(@hdata.rh_key_to_symbol(4)).to eq(@hdata.rh_key_to_symbol(3))
+    end
+  end
+
+  context "With {\n"\
+          "         :_test3  => [{ :filter => 1, :test1 => 'value1' }],\n"\
+          "         :_test34 => [{ :filter => 1, :test1 => 'value2' },\n"\
+          "                      { :filter => 2, :test1 => 'value3' }] \n"\
+          '} - Complex cases' do
+    before(:all) do
+      @hdata = { :_test3 =>  [{ :filter => 1, :test1 => 'value1' }],
+                 :_test34 => [{ :filter => 1, :test1 => 'value2' },
+                              { :filter => 2, :test1 => 'value3' },
+                              { :filter => 1, :test1 => 'value4' }]
+               }
+    end
+
+    it "rh_get('/_test3$/') \n    => "\
+       "[[{ :filter => 1, :test1 => 'value1' }]]"\
+       ' - Just getting content of matching keys in array.' do
+      expect(@hdata.rh_get('/_test3$/')
+            ).to eq([[{ :filter => 1, :test1 => 'value1' }]])
+    end
+
+    it "rh_get('/_test3$/0') \n    => "\
+       " [{ :filter => 1, :test1 => 'value1' }]"\
+       ' - Matching array, with only one element. So getting content of '\
+       'that element 0' do
+      expect(@hdata.rh_get('/_test3$/0')
+            ).to eq([:filter => 1, :test1 => 'value1'])
+    end
+
+    it "rh_get('/_test3/') \n    => "\
+       "[[{ :filter => 1, :test1 => 'value1' }],\n"\
+       "       [{ :filter => 1, :test1 => 'value2' },\n"\
+       "        { :filter => 2, :test1 => 'value3' },"\
+       "        { :filter => 1, :test1 => 'value4' }]]"\
+       ' - Just getting, for all matching keys, all elements content' do
+      expect(@hdata.rh_get('/_test3/')
+            ).to eq([[{ :filter => 1, :test1 => 'value1' }],
+                     [{ :filter => 1, :test1 => 'value2' },
+                      { :filter => 2, :test1 => 'value3' },
+                      { :filter => 1, :test1 => 'value4' }]])
+    end
+
+    it "rh_get('/_test3/0') \n    => "\
+       "[{ :filter => 1, :test1 => 'value1' },\n"\
+       "       { :filter => 1, :test1 => 'value2' },\n"\
+       "       { :filter => 2, :test1 => 'value3' },"\
+       "       { :filter => 1, :test1 => 'value4' }]"\
+       ' - Result is an Array of 3 elements. So, same result.' do
+      expect(@hdata.rh_get('/_test3/0')
+            ).to eq([[{ :filter => 1, :test1 => 'value1' }],
+                     [{ :filter => 1, :test1 => 'value2' },
+                      { :filter => 2, :test1 => 'value3' },
+                      { :filter => 1, :test1 => 'value4' }]])
+    end
+
+    it "rh_get('{/_test3$/}') \n    => "\
+       ":_test3 => [{ :filter => 1, :test1 => 'value1' }]"\
+       ' - Just getting content of :_test3, in the key' do
+      expect(@hdata.rh_get('{/_test3$/}')
+            ).to eq(:_test3 => [{ :filter => 1, :test1 => 'value1' }])
+    end
+
+    it "rh_get('{/_test3$/0}') \n    => "\
+       ":_test3 => { :filter => 1, :test1 => 'value1' }"\
+       ' - the content of :_key3 is an array with 1 element. '\
+       "Getting 'key => key element 0'" do
+      expect(@hdata.rh_get('{/_test3$/0}')
+            ).to eq(:_test3 => { :filter => 1, :test1 => 'value1' })
+    end
+
+    it "rh_get(:_test3, '<%= data[:filter] == 1 %>|:test1') \n    => "\
+       "['value1']"\
+       '- Get all match elements found in :_test3 => Array' do
+      expect(@hdata.rh_get(:_test3,
+                           '<%= data[:filter] == 1 %>|:test1')
+            ).to eq(['value1'])
+    end
+
+    it "rh_get(:_test3, '<%= data[:filter] == 1 %>0|:test1') \n    => "\
+       "'value1' "\
+       '- get value of element 0 as only one element was found' do
+      expect(@hdata.rh_get(:_test3,
+                           '<%= data[:filter] == 1 %>0|:test1')
+            ).to eq('value1')
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 1 %>|:test1') \n    => "\
+       ":_test3 => ['value1'], :_test34 => ['value2', 'value4']"\
+       '- build matching key list with Array of data filtered.' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 1 %>|:test1')
+            ).to eq(:_test3 => ['value1'], :_test34 => %w(value2 value4))
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 1 %>0|:test1') \n    => "\
+       ":_test3 => 'value1', :_test34 => ['value2', 'value4']"\
+       '- same, but if result filtered is array with 1 element, '\
+       'get that element' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 1 %>0|:test1')
+            ).to eq(:_test3 => 'value1', :_test34 => %w(value2 value4))
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 2 %>|:test1') \n    => "\
+       ":_test34 => ['value3']"\
+       ' - get only matching keys with found filtered values.' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 2 %>|:test1')
+            ).to eq(:_test34 => ['value3'])
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 2 %>e|:test1') \n    => "\
+       ":_test3 => [], :_test34 => ['value3']"\
+       ' - get only matching keys with found filtered values.' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 2 %>e|:test1')
+            ).to eq(:_test3 => [], :_test34 => ['value3'])
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 2 %>0|:test1') \n    => "\
+       ":_test34 => 'value3'"\
+       ' - same but array of one element found => get the content of '\
+       'that element' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 2 %>0|:test1')
+            ).to eq(:_test34 => 'value3')
+    end
+
+    it "rh_get('{/_test3/}', '<%= data[:filter] == 2 %>e0|:test1') \n    => "\
+       ":_test3 => [], :_test34 => 'value3'"\
+       ' - and now get empty key matching as well.' do
+      expect(@hdata.rh_get('{/_test3/}',
+                           '<%= data[:filter] == 2 %>e0|:test1')
+            ).to eq(:_test3 => [], :_test34 => 'value3')
     end
   end
 end
