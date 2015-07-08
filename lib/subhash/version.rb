@@ -1,5 +1,5 @@
 # Recursive Hash
 module SubHash
-  VERSION = '0.1.4'
-  DATE = '2015-06-26'
+  VERSION = '0.1.5'
+  DATE = '2015-07-09'
 end
